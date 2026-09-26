@@ -14,6 +14,10 @@ import {
   setIcon,
 } from "obsidian";
 import { LoadGate } from "./loadGate";
+import {
+  ALL_CATEGORY_OPTION_LABEL,
+  filterDropdownCategories,
+} from "./categories";
 
 const MINIFLUX_VIEW_TYPE = "miniflux-rss-view";
 const MINIFLUX_ARTICLE_VIEW_TYPE = "miniflux-article";
@@ -234,10 +238,13 @@ class MinifluxApiClient {
   }
 
   async listCategories(): Promise<MinifluxCategory[]> {
-    return this.requestJson<MinifluxCategory[]>({
+    const categories = await this.requestJson<MinifluxCategory[]>({
       url: this.url("/categories"),
       method: "GET",
     });
+    // Hide Miniflux's built-in "All" category so the dropdown does not show a
+    // duplicate next to the leading "All" option (value "" = no filter).
+    return filterDropdownCategories(categories);
   }
 
   private async requestJson<T>(options: RequestUrlParam): Promise<T> {
@@ -397,7 +404,7 @@ class MinifluxRssView extends ItemView {
       },
     });
     this.categorySelect.createEl("option", {
-      text: "All categories",
+      text: ALL_CATEGORY_OPTION_LABEL,
       attr: { value: "" },
     });
     this.categorySelect.onchange = () => {
