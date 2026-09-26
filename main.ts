@@ -12,11 +12,12 @@ import {
   requestUrl,
   setIcon,
 } from "obsidian";
+import { LoadGate } from "./loadGate";
 
 const MINIFLUX_VIEW_TYPE = "miniflux-rss-view";
 const MINIFLUX_ARTICLE_VIEW_TYPE = "miniflux-article";
 type RequestUrlResponse = Awaited<ReturnType<typeof requestUrl>>;
-type MinifluxFilter = "unread" | "all" | "starred";
+type MinifluxFilter = "unread" | "read" | "starred";
 type MinifluxDirection = "desc" | "asc";
 
 interface MinifluxPluginSettings {
@@ -188,8 +189,8 @@ class MinifluxApiClient {
       query.set("category_id", String(options.categoryId));
     }
 
-    if (options.filter === "unread") {
-      query.set("status", "unread");
+    if (options.filter === "unread" || options.filter === "read") {
+      query.set("status", options.filter);
     }
 
     if (options.filter === "starred") {
@@ -307,7 +308,10 @@ class MinifluxRssView extends ItemView {
   private categoryId: number | null = null;
   private offset = 0;
   private total = 0;
-  private isLoading = false;
+  private readonly loadGate = new LoadGate();
+  private get isLoading(): boolean {
+    return this.loadGate.busy;
+  }
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -381,7 +385,7 @@ class MinifluxRssView extends ItemView {
 
     const filters = controls.createDiv({ cls: "miniflux-filters" });
     this.createFilterButton(filters, "unread", "Unread");
-    this.createFilterButton(filters, "all", "All");
+    this.createFilterButton(filters, "read", "Read");
     this.createFilterButton(filters, "starred", "Starred");
     this.updateFilterButtons();
 
@@ -411,11 +415,11 @@ class MinifluxRssView extends ItemView {
   }
 
   private async loadEntries(reset: boolean): Promise<void> {
-    if (this.isLoading) {
+    const token = this.loadGate.begin(reset);
+    if (token === null) {
       return;
     }
 
-    this.isLoading = true;
     const nextOffset = reset ? 0 : this.offset;
     this.setStatus(reset ? "Loading RSS entries..." : "Loading more entries...");
     this.renderLoadMore();
@@ -428,6 +432,9 @@ class MinifluxRssView extends ItemView {
         direction: this.direction,
         categoryId: this.categoryId,
       });
+      if (!this.loadGate.isLatest(token)) {
+        return;
+      }
       const incoming = response.entries ?? [];
       this.entries = reset ? incoming : [...this.entries, ...incoming];
       this.offset = nextOffset + incoming.length;
@@ -435,11 +442,13 @@ class MinifluxRssView extends ItemView {
       this.renderCards();
       this.setStatus(this.statusMessage());
     } catch (error) {
-      const message = getErrorMessage(error);
-      this.setStatus(message, true);
-      new Notice(message);
+      if (this.loadGate.isLatest(token)) {
+        const message = getErrorMessage(error);
+        this.setStatus(message, true);
+        new Notice(message);
+      }
     } finally {
-      this.isLoading = false;
+      this.loadGate.finish(token);
       this.renderLoadMore();
     }
   }
