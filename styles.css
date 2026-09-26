@@ -291,15 +291,60 @@
     gap: 10px;
   }
 
-  /* 文章卡片：標題字級/行高與觸控高度；摘要行高 */
+  /* 控制列面板化：背景色＋邊框＋圓角＋內距，與正文明顯分層（一眼可見） */
+  .miniflux-toolbar,
+  .miniflux-controls {
+    background: var(--background-secondary);
+    border: 1px solid var(--miniflux-border);
+    border-radius: 12px;
+    padding: 12px;
+  }
+
+  .miniflux-search-input {
+    background: var(--background-primary);
+  }
+
+  /* 文章卡片：加大內距/圓角/間距＋浮起陰影，列表外觀明顯改變 */
+  .miniflux-card-list {
+    gap: 16px;
+  }
+
+  .miniflux-card {
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    padding: 18px;
+  }
+
+  /* 狀態/分類 pill：行動版以填色塊呈現（明顯可讀） */
+  .miniflux-pill {
+    font-size: 0.78rem;
+    padding: 4px 10px;
+  }
+
+  .miniflux-pill-unread {
+    background: var(--interactive-accent);
+    border-color: transparent;
+    color: var(--text-on-accent);
+    font-weight: 600;
+  }
+
+  .miniflux-pill-category {
+    color: var(--text-normal);
+  }
+
+  /* 文章卡片：標題字級提升（1.15rem）與觸控高度；摘要 2 行截斷（line-clamp） */
   .miniflux-card-title {
-    font-size: 1.05rem;
+    font-size: 1.15rem;
     line-height: 1.4;
     min-height: 44px;
   }
 
   .miniflux-summary {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     line-height: 1.5;
+    overflow: hidden;
   }
 
   /* 側欄文章檢視（手機全屏）：padding、行高、AI 摘要 blockquote、Open original 觸控 */

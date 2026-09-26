@@ -1,6 +1,6 @@
 {
   "name": "miniflux-rss-view",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "description": "Obsidian plugin for reading Miniflux RSS entries. Works on desktop and mobile.",
   "main": "dist/main.js",
   "scripts": {
