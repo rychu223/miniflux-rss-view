@@ -66,6 +66,10 @@
   flex-wrap: wrap;
 }
 
+.miniflux-category-select {
+  max-width: 220px;
+}
+
 .miniflux-button,
 .miniflux-icon-button,
 .miniflux-load-more-button {
@@ -171,6 +175,11 @@
 
 .miniflux-pill-unread {
   color: var(--text-accent);
+}
+
+.miniflux-pill-category {
+  background: var(--background-secondary-alt);
+  border-color: var(--background-modifier-border-hover);
 }
 
 .miniflux-summary {

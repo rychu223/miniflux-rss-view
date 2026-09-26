@@ -7,6 +7,7 @@ Desktop Obsidian plugin for reading Miniflux RSS entries inside Obsidian.
 * Configure a Miniflux server URL, API key, and page size.
 * Open a dedicated RSS view from the ribbon or command palette.
 * Browse unread entries by default, with all/unread/starred filters.
+* Filter entries by category and sort the list newest-first or oldest-first.
 * Search entries, refresh the list, and load more pages.
 * Star or unstar entries directly from the list.
 * Read full article content (including the Miniflux "AI summary" blockquote) in the right sidebar.

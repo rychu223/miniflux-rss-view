@@ -17,6 +17,7 @@ const MINIFLUX_VIEW_TYPE = "miniflux-rss-view";
 const MINIFLUX_ARTICLE_VIEW_TYPE = "miniflux-article";
 type RequestUrlResponse = Awaited<ReturnType<typeof requestUrl>>;
 type MinifluxFilter = "unread" | "all" | "starred";
+type MinifluxDirection = "desc" | "asc";
 
 interface MinifluxPluginSettings {
   baseUrl: string;
@@ -28,6 +29,12 @@ interface MinifluxFeed {
   id?: number;
   title?: string;
   site_url?: string;
+  category?: MinifluxCategory;
+}
+
+interface MinifluxCategory {
+  id: number;
+  title: string;
 }
 
 interface MinifluxEntry {
@@ -166,14 +173,20 @@ class MinifluxApiClient {
     filter: MinifluxFilter;
     search: string;
     offset: number;
+    direction: MinifluxDirection;
+    categoryId: number | null;
   }): Promise<MinifluxEntriesResponse> {
     const settings = this.getSettings();
     const query = new URLSearchParams({
       limit: String(settings.pageSize),
       offset: String(options.offset),
       order: "published_at",
-      direction: "desc",
+      direction: options.direction,
     });
+
+    if (options.categoryId !== null) {
+      query.set("category_id", String(options.categoryId));
+    }
 
     if (options.filter === "unread") {
       query.set("status", "unread");
@@ -209,9 +222,19 @@ class MinifluxApiClient {
   }
 
   async setEntryStarred(id: number, starred: boolean): Promise<void> {
+    // Miniflux 2.x only registers PUT /v1/entries/{id}/bookmark; DELETE returns 405.
+    // PUT without a body toggles; an explicit body sets the target state deterministically.
     await this.requestNoContent({
       url: this.url(`/entries/${id}/bookmark`),
-      method: starred ? "PUT" : "DELETE",
+      method: "PUT",
+      body: JSON.stringify({ starred }),
+    });
+  }
+
+  async listCategories(): Promise<MinifluxCategory[]> {
+    return this.requestJson<MinifluxCategory[]>({
+      url: this.url("/categories"),
+      method: "GET",
     });
   }
 
@@ -275,9 +298,13 @@ class MinifluxRssView extends ItemView {
   private loadMoreEl: HTMLElement;
   private searchInput: HTMLInputElement;
   private filterButtons = new Map<MinifluxFilter, HTMLButtonElement>();
+  private sortButtons = new Map<MinifluxDirection, HTMLButtonElement>();
+  private categorySelect: HTMLSelectElement;
   private entries: MinifluxEntry[] = [];
   private filter: MinifluxFilter = "unread";
   private search = "";
+  private direction: MinifluxDirection = "desc";
+  private categoryId: number | null = null;
   private offset = 0;
   private total = 0;
   private isLoading = false;
@@ -303,6 +330,7 @@ class MinifluxRssView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.renderShell();
+    await this.loadCategories();
     await this.loadEntries(true);
   }
 
@@ -357,6 +385,26 @@ class MinifluxRssView extends ItemView {
     this.createFilterButton(filters, "starred", "Starred");
     this.updateFilterButtons();
 
+    this.categorySelect = filters.createEl("select", {
+      cls: "miniflux-category-select",
+      attr: {
+        "aria-label": "Filter by category",
+      },
+    });
+    this.categorySelect.createEl("option", {
+      text: "All categories",
+      attr: { value: "" },
+    });
+    this.categorySelect.onchange = () => {
+      const value = this.categorySelect.value;
+      this.categoryId = value ? Number(value) : null;
+      void this.loadEntries(true);
+    };
+
+    this.createSortButton(filters, "desc", "Newest");
+    this.createSortButton(filters, "asc", "Oldest");
+    this.updateSortButtons();
+
     this.statusEl = this.contentEl.createDiv({ cls: "miniflux-status" });
     this.listEl = this.contentEl.createDiv({ cls: "miniflux-card-list" });
     this.loadMoreEl = this.contentEl.createDiv({ cls: "miniflux-load-more" });
@@ -377,6 +425,8 @@ class MinifluxRssView extends ItemView {
         filter: this.filter,
         search: this.search,
         offset: nextOffset,
+        direction: this.direction,
+        categoryId: this.categoryId,
       });
       const incoming = response.entries ?? [];
       this.entries = reset ? incoming : [...this.entries, ...incoming];
@@ -391,6 +441,22 @@ class MinifluxRssView extends ItemView {
     } finally {
       this.isLoading = false;
       this.renderLoadMore();
+    }
+  }
+
+  private async loadCategories(): Promise<void> {
+    try {
+      const categories = await this.plugin.api.listCategories();
+      for (const category of categories) {
+        this.categorySelect.createEl("option", {
+          text: category.title,
+          attr: { value: String(category.id) },
+        });
+      }
+    } catch (error) {
+      const message = getErrorMessage(error);
+      this.setStatus(message, true);
+      new Notice(message);
     }
   }
 
@@ -438,6 +504,14 @@ class MinifluxRssView extends ItemView {
 
     if (entry.starred) {
       parent.createEl("span", { cls: "miniflux-pill", text: "Starred" });
+    }
+
+    const categoryTitle = entry.feed?.category?.title?.trim();
+    if (categoryTitle) {
+      parent.createEl("span", {
+        cls: "miniflux-pill miniflux-pill-category",
+        text: categoryTitle,
+      });
     }
 
     const feedTitle = entry.feed?.title?.trim();
@@ -566,6 +640,35 @@ class MinifluxRssView extends ItemView {
   private updateFilterButtons(): void {
     for (const [filter, button] of this.filterButtons) {
       const active = filter === this.filter;
+      button.toggleClass("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    }
+  }
+
+  private createSortButton(
+    parent: HTMLElement,
+    direction: MinifluxDirection,
+    label: string,
+  ): void {
+    const button = parent.createEl("button", {
+      cls: "miniflux-button miniflux-filter-button",
+      text: label,
+      attr: { type: "button" },
+    });
+    button.onclick = () => {
+      if (this.direction === direction) {
+        return;
+      }
+      this.direction = direction;
+      this.updateSortButtons();
+      void this.loadEntries(true);
+    };
+    this.sortButtons.set(direction, button);
+  }
+
+  private updateSortButtons(): void {
+    for (const [direction, button] of this.sortButtons) {
+      const active = direction === this.direction;
       button.toggleClass("is-active", active);
       button.setAttribute("aria-pressed", String(active));
     }
