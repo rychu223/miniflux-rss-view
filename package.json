@@ -1,7 +1,7 @@
 {
   "name": "miniflux-rss-view",
-  "version": "1.0.4",
-  "description": "Obsidian plugin for reading Miniflux RSS entries.",
+  "version": "1.1.0",
+  "description": "Obsidian plugin for reading Miniflux RSS entries. Works on desktop and mobile.",
   "main": "dist/main.js",
   "scripts": {
     "dev": "node scripts/copy-assets.mjs && node esbuild.config.mjs",

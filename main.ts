@@ -3,6 +3,7 @@ import {
   ItemView,
   MarkdownRenderer,
   Notice,
+  Platform,
   Plugin,
   PluginSettingTab,
   RequestUrlParam,
@@ -892,9 +893,35 @@ class MinifluxSettingTab extends PluginSettingTab {
   }
 }
 
+/**
+ * Open a URL in the system's default browser.
+ *
+ * - Desktop (Electron): shell.openExternal via window.require("electron").
+ * - Mobile (Capacitor WebView) / web: window.open(url, "_blank") opens the
+ *   system browser; it must stay inside the user click handler's synchronous
+ *   path so it is not blocked as a popup.
+ *
+ * Node/Electron APIs do not exist on mobile; calling them would crash the
+ * plugin, so the branch is decided upfront with Platform (no feature sniffing
+ * that could touch window.require on mobile).
+ */
 async function openUrlInSystemBrowser(url: string | undefined): Promise<void> {
   const externalUrl = normalizeExternalBrowserUrl(url);
 
+  try {
+    if (Platform.isDesktopApp) {
+      await openExternalDesktop(externalUrl);
+      return;
+    }
+    openExternalMobile(externalUrl);
+  } catch (error) {
+    throw new Error(
+      `Unable to open the URL in the system browser. ${getErrorMessage(error)}`,
+    );
+  }
+}
+
+async function openExternalDesktop(url: string): Promise<void> {
   interface ElectronShell {
     openExternal(target: string): Promise<void>;
   }
@@ -904,18 +931,15 @@ async function openUrlInSystemBrowser(url: string | undefined): Promise<void> {
   };
 
   const electron = anyWindow.require?.("electron");
-  if (electron?.shell?.openExternal) {
-    try {
-      await electron.shell.openExternal(externalUrl);
-      return;
-    } catch (error) {
-      throw new Error(
-        `Unable to open the URL in the system browser. ${getErrorMessage(error)}`,
-      );
-    }
+  if (!electron?.shell?.openExternal) {
+    throw new Error("Electron shell is not available.");
   }
 
-  const popup = window.open(externalUrl, "_blank");
+  await electron.shell.openExternal(url);
+}
+
+function openExternalMobile(url: string): void {
+  const popup = window.open(url, "_blank");
   if (!popup) {
     throw new Error("Unable to open the URL in the system browser.");
   }

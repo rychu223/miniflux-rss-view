@@ -253,4 +253,14 @@
   .miniflux-card-actions {
     justify-content: flex-start;
   }
+
+  .miniflux-search-input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .miniflux-card-title,
+  .miniflux-article-title {
+    overflow-wrap: anywhere;
+  }
 }

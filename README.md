@@ -1,6 +1,6 @@
 # Miniflux RSS View
 
-Desktop Obsidian plugin for reading Miniflux RSS entries inside Obsidian.
+Obsidian plugin for reading Miniflux RSS entries inside Obsidian, on desktop and mobile.
 
 ## Features
 
