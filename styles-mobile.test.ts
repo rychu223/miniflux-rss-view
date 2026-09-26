@@ -2,13 +2,20 @@ import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-// Static regression guard for the <600px mobile horizontal-overflow fix (v1.1.3).
+// Static regression guards for the mobile media block.
 //
-// CEO report: cards were wider than the phone viewport (required horizontal
-// scrolling to read one card). The fix constrains the card grid, card internals,
-// meta text, title button, full-width inputs and article content so nothing can
-// grow past the viewport. These declarations MUST live inside the mobile media
-// block so the desktop layout is untouched.
+// (1) v1.1.3 anti-horizontal-scroll fix — REQUIRED declarations. CEO report:
+// cards were wider than the phone viewport (required horizontal scrolling to
+// read one card). The fix constrains the card grid, card internals, meta text,
+// title button, full-width inputs and article content so nothing can grow past
+// the viewport. These declarations MUST live inside the mobile media block so
+// the desktop layout is untouched.
+//
+// (2) v1.1.4 upstream-style restore — ABSENT declarations. CEO report: the
+// v1.1.2 "card-ification" visual overhaul (control panel bg/radius/padding,
+// card radius/shadow/padding, 16px gap, summary line-clamp, filled unread pill,
+// enlarged title) must stay OUT of the mobile media block so mobile keeps the
+// upstream v1.0.4 list look, while the v1.1.3 width fix remains.
 //
 // NOTE: only node builtins are imported on purpose — extensionless imports break
 // under `node --test` type stripping (see loadGate.test.ts), so this file keeps
@@ -57,6 +64,38 @@ const REQUIRED: RequiredDeclaration[] = [
   { selector: ".miniflux-article-content pre", property: "white-space", value: "pre-wrap" },
 ];
 
+interface AbsentDeclaration {
+  selector: string;
+  property: string;
+  value: string;
+}
+
+// v1.1.2 card-ification outliers that must NOT come back into the mobile block
+// (v1.1.4 upstream-style restore). Each entry is the exact declaration to reject.
+const ABSENT: AbsentDeclaration[] = [
+  // Control panel: background + border + radius + 12px padding overlay.
+  { selector: ".miniflux-toolbar, .miniflux-controls", property: "background", value: "var(--background-secondary)" },
+  { selector: ".miniflux-toolbar, .miniflux-controls", property: "border-radius", value: "12px" },
+  { selector: ".miniflux-toolbar, .miniflux-controls", property: "padding", value: "12px" },
+
+  // Card list: 16px gap override (base gap var(--miniflux-gap) = 12px).
+  { selector: ".miniflux-card-list", property: "gap", value: "16px" },
+
+  // Card: 12px radius / 18px padding / drop shadow.
+  { selector: ".miniflux-card", property: "border-radius", value: "12px" },
+  { selector: ".miniflux-card", property: "box-shadow", value: "0 2px 6px rgba(0, 0, 0, 0.1)" },
+  { selector: ".miniflux-card", property: "padding", value: "18px" },
+
+  // Summary: 2-line clamp truncation.
+  { selector: ".miniflux-summary", property: "-webkit-line-clamp", value: "2" },
+
+  // Unread pill: filled interactive-accent background.
+  { selector: ".miniflux-pill-unread", property: "background", value: "var(--interactive-accent)" },
+
+  // Title: 1.15rem enlargement.
+  { selector: ".miniflux-card-title", property: "font-size", value: "1.15rem" },
+];
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -88,6 +127,23 @@ test("mobile (<600px) media block contains the anti-overflow declarations", asyn
     missing,
     [],
     `Missing inside the mobile media block:\n${missing
+      .map(({ selector, property, value }) => `${selector} { ${property}: ${value}; }`)
+      .join("\n")}`,
+  );
+});
+
+test("mobile (<600px) media block omits the v1.1.2 card-ification declarations", async () => {
+  const css = await readFile("styles.css", "utf8");
+
+  const start = css.indexOf("@media (max-width: 600px)");
+  assert.ok(start !== -1, "mobile media block must exist in styles.css");
+  const mobileBlock = css.slice(start);
+
+  const present = ABSENT.filter((decl) => declarationPresent(mobileBlock, decl));
+  assert.deepEqual(
+    present,
+    [],
+    `Must NOT appear inside the mobile media block (upstream list style restored):\n${present
       .map(({ selector, property, value }) => `${selector} { ${property}: ${value}; }`)
       .join("\n")}`,
   );

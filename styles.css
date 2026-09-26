@@ -270,17 +270,12 @@
     padding: 12px;
   }
 
-  /* 控制列：所有互動控制觸控目標 ≥ 44px；icon 按鈕放大；分類下拉與排序按鈕同列 */
+  /* 控制列：所有互動控制觸控目標 ≥ 44px；分類下拉與排序按鈕同列 */
   .miniflux-button,
   .miniflux-icon-button,
   .miniflux-load-more-button,
   .miniflux-category-select {
     min-height: 44px;
-  }
-
-  .miniflux-icon-button {
-    height: 44px;
-    width: 44px;
   }
 
   .miniflux-category-select {
@@ -293,57 +288,23 @@
     gap: 10px;
   }
 
-  /* 控制列面板化：背景色＋邊框＋圓角＋內距，與正文明顯分層（一眼可見） */
-  .miniflux-toolbar,
-  .miniflux-controls {
-    background: var(--background-secondary);
-    border: 1px solid var(--miniflux-border);
-    border-radius: 12px;
-    padding: 12px;
-  }
-
-  .miniflux-search-input {
-    background: var(--background-primary);
-  }
-
-  /* 文章卡片：加大內距/圓角/間距＋浮起陰影，列表外觀明顯改變 */
+  /* 1.1.3: grid track 預設 min-width:auto，任何不可斷行內容都會撐開整條列表；minmax(0,1fr) 讓 track 可縮進視口 */
   .miniflux-card-list {
-    gap: 16px;
-    /* 1.1.3: grid track 預設 min-width:auto，任何不可斷行內容都會撐開整條列表；minmax(0,1fr) 讓 track 可縮進視口 */
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* 卡片維持上游外觀：base border-radius 8px / padding 14px，無陰影；僅收斂寬度防溢出 */
   .miniflux-card {
-    border-radius: 12px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     box-sizing: border-box;
     max-width: 100%;
     min-width: 0;
     overflow-wrap: anywhere;
-    padding: 18px;
     width: 100%;
   }
 
-  /* 狀態/分類 pill：行動版以填色塊呈現（明顯可讀） */
-  .miniflux-pill {
-    font-size: 0.78rem;
-    padding: 4px 10px;
-  }
-
-  .miniflux-pill-unread {
-    background: var(--interactive-accent);
-    border-color: transparent;
-    color: var(--text-on-accent);
-    font-weight: 600;
-  }
-
-  .miniflux-pill-category {
-    color: var(--text-normal);
-  }
-
-  /* 文章卡片：標題字級提升（1.15rem）與觸控高度；摘要 2 行截斷（line-clamp） */
+  /* 文章卡片：標題維持上游字級與行高；觸控高度由 min-height 提供 */
   .miniflux-card-title {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     line-height: 1.4;
     min-height: 44px;
     white-space: normal;
@@ -351,11 +312,7 @@
   }
 
   .miniflux-summary {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
     line-height: 1.5;
-    overflow: hidden;
   }
 
   /* 側欄文章檢視（手機全屏）：padding、行高、AI 摘要 blockquote、Open original 觸控 */
