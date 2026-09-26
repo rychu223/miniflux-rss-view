@@ -263,4 +263,79 @@
   .miniflux-article-title {
     overflow-wrap: anywhere;
   }
+
+  .miniflux-view {
+    padding: 12px;
+  }
+
+  /* 控制列：所有互動控制觸控目標 ≥ 44px；icon 按鈕放大；分類下拉與排序按鈕同列 */
+  .miniflux-button,
+  .miniflux-icon-button,
+  .miniflux-load-more-button,
+  .miniflux-category-select {
+    min-height: 44px;
+  }
+
+  .miniflux-icon-button {
+    height: 44px;
+    width: 44px;
+  }
+
+  .miniflux-category-select {
+    flex: 1 1 auto;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .miniflux-toolbar {
+    gap: 10px;
+  }
+
+  /* 文章卡片：標題字級/行高與觸控高度；摘要行高 */
+  .miniflux-card-title {
+    font-size: 1.05rem;
+    line-height: 1.4;
+    min-height: 44px;
+  }
+
+  .miniflux-summary {
+    line-height: 1.5;
+  }
+
+  /* 側欄文章檢視（手機全屏）：padding、行高、AI 摘要 blockquote、Open original 觸控 */
+  .miniflux-article-view {
+    padding: 12px 16px;
+  }
+
+  .miniflux-article-title {
+    font-size: 1.3rem;
+    line-height: 1.35;
+  }
+
+  .miniflux-article-content {
+    line-height: 1.7;
+  }
+
+  .miniflux-article-content blockquote {
+    background: var(--background-secondary);
+    border-radius: 0 4px 4px 0;
+    padding: 10px 12px;
+  }
+
+  .miniflux-article-content img,
+  .miniflux-article-content video,
+  .miniflux-article-content iframe {
+    height: auto;
+    max-width: 100%;
+  }
+
+  /* 整體：狀態訊息換行不溢出；Load more 全寬 */
+  .miniflux-status {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .miniflux-load-more-button {
+    width: 100%;
+  }
 }
