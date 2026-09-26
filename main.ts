@@ -1,30 +1,27 @@
 import {
   App,
   ItemView,
+  MarkdownRenderer,
   Notice,
   Plugin,
   PluginSettingTab,
   RequestUrlParam,
   Setting,
   WorkspaceLeaf,
+  htmlToMarkdown,
   requestUrl,
   setIcon,
 } from "obsidian";
 
 const MINIFLUX_VIEW_TYPE = "miniflux-rss-view";
-const WEB_VIEWER_TYPE = "webviewer";
+const MINIFLUX_ARTICLE_VIEW_TYPE = "miniflux-article";
 type RequestUrlResponse = Awaited<ReturnType<typeof requestUrl>>;
 type MinifluxFilter = "unread" | "all" | "starred";
-
-interface WorkspaceWithExternalUrl {
-  openUrl?: (url: string) => Promise<void> | void;
-}
 
 interface MinifluxPluginSettings {
   baseUrl: string;
   apiKey: string;
   pageSize: number;
-  debugOpenLinks: boolean;
 }
 
 interface MinifluxFeed {
@@ -61,7 +58,6 @@ const DEFAULT_SETTINGS: MinifluxPluginSettings = {
   baseUrl: "",
   apiKey: "",
   pageSize: 30,
-  debugOpenLinks: false,
 };
 
 export default class MinifluxRssPlugin extends Plugin {
@@ -75,6 +71,11 @@ export default class MinifluxRssPlugin extends Plugin {
     this.registerView(
       MINIFLUX_VIEW_TYPE,
       (leaf) => new MinifluxRssView(leaf, this),
+    );
+
+    this.registerView(
+      MINIFLUX_ARTICLE_VIEW_TYPE,
+      (leaf) => new MinifluxArticleView(leaf, this),
     );
 
     this.addRibbonIcon("rss", "Open Miniflux RSS", () => {
@@ -102,6 +103,7 @@ export default class MinifluxRssPlugin extends Plugin {
 
   onunload(): void {
     this.app.workspace.detachLeavesOfType(MINIFLUX_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(MINIFLUX_ARTICLE_VIEW_TYPE);
   }
 
   async activateView(): Promise<void> {
@@ -121,11 +123,26 @@ export default class MinifluxRssPlugin extends Plugin {
   }
 
   async openEntry(entry: MinifluxEntry): Promise<void> {
-    const url = normalizeArticleUrl(entry.url);
-    await openInWebViewer(this.app, url, this.settings.debugOpenLinks);
+    await this.openArticleInSidebar(entry);
 
     if (entry.status === "unread") {
       await this.api.updateEntriesStatus([entry.id], "read");
+    }
+  }
+
+  async openArticleInSidebar(entry: MinifluxEntry): Promise<void> {
+    const leaf = await this.app.workspace.ensureSideLeaf(
+      MINIFLUX_ARTICLE_VIEW_TYPE,
+      "right",
+      {
+        active: true,
+        split: false,
+        reveal: true,
+      },
+    );
+
+    if (leaf.view instanceof MinifluxArticleView) {
+      await leaf.view.setEntry(entry);
     }
   }
 
@@ -400,8 +417,8 @@ class MinifluxRssView extends ItemView {
 
       const actions = header.createDiv({ cls: "miniflux-card-actions" });
       this.createStarButton(actions, entry);
-      this.createActionButton(actions, "external-link", "Open article", () => {
-        void this.openEntry(entry);
+      this.createActionButton(actions, "external-link", "Open original article", () => {
+        void this.openOriginalInBrowser(entry.url);
       });
 
       const meta = main.createDiv({ cls: "miniflux-card-meta" });
@@ -493,6 +510,14 @@ class MinifluxRssView extends ItemView {
 
       this.renderCards();
       this.setStatus(this.statusMessage());
+    } catch (error) {
+      new Notice(getErrorMessage(error));
+    }
+  }
+
+  private async openOriginalInBrowser(url: string | undefined): Promise<void> {
+    try {
+      await openUrlInSystemBrowser(url);
     } catch (error) {
       new Notice(getErrorMessage(error));
     }
@@ -591,6 +616,112 @@ class MinifluxRssView extends ItemView {
   }
 }
 
+class MinifluxArticleView extends ItemView {
+  private currentEntry: MinifluxEntry | null = null;
+
+  constructor(
+    leaf: WorkspaceLeaf,
+    private readonly plugin: MinifluxRssPlugin,
+  ) {
+    super(leaf);
+  }
+
+  getViewType(): string {
+    return MINIFLUX_ARTICLE_VIEW_TYPE;
+  }
+
+  getDisplayText(): string {
+    const title = this.currentEntry?.title?.trim();
+    if (title) {
+      return title.length > 48 ? `${title.slice(0, 45)}...` : title;
+    }
+    return "Miniflux Article";
+  }
+
+  getIcon(): string {
+    return "book-open";
+  }
+
+  async onOpen(): Promise<void> {}
+
+  async onClose(): Promise<void> {}
+
+  async setEntry(entry: MinifluxEntry): Promise<void> {
+    this.currentEntry = entry;
+    this.renderEntry(entry);
+  }
+
+  private renderEntry(entry: MinifluxEntry): void {
+    this.contentEl.empty();
+    this.contentEl.addClass("miniflux-article-view");
+
+    this.contentEl.createEl("h2", {
+      cls: "miniflux-article-title",
+      text: entry.title?.trim() || "Untitled entry",
+    });
+
+    const meta = this.contentEl.createDiv({ cls: "miniflux-article-meta" });
+    const feedTitle = entry.feed?.title?.trim();
+    if (feedTitle) {
+      meta.createSpan({ text: feedTitle });
+    }
+    const author = entry.author?.trim();
+    if (author) {
+      meta.createSpan({ text: author });
+    }
+    const date = formatDate(entry.published_at ?? entry.created_at);
+    if (date) {
+      meta.createSpan({ text: date });
+    }
+    if (typeof entry.reading_time === "number" && entry.reading_time > 0) {
+      meta.createSpan({ text: `${entry.reading_time} min` });
+    }
+
+    const actions = this.contentEl.createDiv({ cls: "miniflux-article-actions" });
+    this.createActionButton(actions, "external-link", "Open original", () => {
+      void openUrlInSystemBrowser(entry.url).catch((error) => {
+        new Notice(getErrorMessage(error));
+      });
+    }, "Open original");
+
+    const contentEl = this.contentEl.createDiv({ cls: "miniflux-article-content" });
+    const markdown = htmlToMarkdown(entry.content ?? "");
+    if (markdown.trim()) {
+      void MarkdownRenderer.render(this.app, markdown, contentEl, "", this);
+    } else {
+      contentEl.createEl("p", {
+        cls: "miniflux-article-empty",
+        text: "No content available for this entry.",
+      });
+    }
+  }
+
+  private createActionButton(
+    parent: HTMLElement,
+    icon: string,
+    label: string,
+    onClick: () => void,
+    text?: string,
+  ): HTMLButtonElement {
+    const button = parent.createEl("button", {
+      cls: text ? "miniflux-button" : "miniflux-icon-button",
+      attr: {
+        type: "button",
+        "aria-label": label,
+        title: label,
+      },
+    });
+    setIcon(button, icon);
+
+    if (text) {
+      button.createSpan({ text });
+    }
+
+    button.onclick = onClick;
+    return button;
+  }
+}
+
 class MinifluxSettingTab extends PluginSettingTab {
   constructor(
     app: App,
@@ -646,53 +777,35 @@ class MinifluxSettingTab extends PluginSettingTab {
             this.plugin.refreshOpenViews();
           });
       });
-
-    new Setting(containerEl)
-      .setName("Debug link opening")
-      .setDesc("Show diagnostic notices when opening RSS entry URLs.")
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.debugOpenLinks)
-          .onChange(async (value) => {
-            this.plugin.settings.debugOpenLinks = value;
-            await this.plugin.saveSettings();
-          });
-      });
   }
 }
 
-async function openInWebViewer(app: App, url: string, debug: boolean): Promise<void> {
+async function openUrlInSystemBrowser(url: string | undefined): Promise<void> {
   const externalUrl = normalizeExternalBrowserUrl(url);
-  const workspace = app.workspace as typeof app.workspace & WorkspaceWithExternalUrl;
 
-  if (debug) {
-    new Notice(`Opening in Web viewer: ${externalUrl}`);
+  interface ElectronShell {
+    openExternal(target: string): Promise<void>;
   }
 
-  try {
-    if (typeof workspace.openUrl === "function") {
-      await workspace.openUrl(externalUrl);
-      if (debug) {
-        new Notice("workspace.openUrl completed.");
-      }
-      return;
-    }
+  const anyWindow = window as unknown as {
+    require?: (module: string) => { shell?: ElectronShell } | undefined;
+  };
 
-    const leaf = app.workspace.getLeaf("tab");
-    await leaf.setViewState({
-      type: WEB_VIEWER_TYPE,
-      active: true,
-      state: {
-        url: externalUrl,
-        navigate: true,
-      },
-    });
-    await app.workspace.revealLeaf(leaf);
-    if (debug) {
-      new Notice("Web viewer leaf opened.");
+  const electron = anyWindow.require?.("electron");
+  if (electron?.shell?.openExternal) {
+    try {
+      await electron.shell.openExternal(externalUrl);
+      return;
+    } catch (error) {
+      throw new Error(
+        `Unable to open the URL in the system browser. ${getErrorMessage(error)}`,
+      );
     }
-  } catch (error) {
-    new Notice(`Unable to open Web viewer. Enable Obsidian core plugin Web viewer, then retry. ${getErrorMessage(error)}`);
+  }
+
+  const popup = window.open(externalUrl, "_blank");
+  if (!popup) {
+    throw new Error("Unable to open the URL in the system browser.");
   }
 }
 
@@ -703,16 +816,11 @@ function normalizeBaseUrl(value: string): string {
   return normalized ? `${normalized}/v1` : "";
 }
 
-function normalizeArticleUrl(value: string | undefined): string {
-  const url = value?.trim();
+function normalizeExternalBrowserUrl(value: string | undefined): string {
+  const url = value?.trim() ?? "";
   if (!url) {
     throw new Error("RSS entry has no article URL.");
   }
-  return url;
-}
-
-function normalizeExternalBrowserUrl(value: string): string {
-  const url = value.trim();
   if (!/^https?:\/\//i.test(url)) {
     throw new Error("RSS entry URL must start with http:// or https://.");
   }
