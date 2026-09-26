@@ -1,0 +1,28 @@
+{
+  "name": "miniflux-rss-view",
+  "version": "1.0.4",
+  "description": "Obsidian plugin for reading Miniflux RSS entries.",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "node scripts/copy-assets.mjs && node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && node scripts/copy-assets.mjs",
+    "version": "node scripts/sync-version.mjs && npm run build && git add package.json package-lock.json manifest.json versions.json",
+    "release": "npm version --tag-version-prefix=\"\"",
+    "release:patch": "npm version patch --tag-version-prefix=\"\"",
+    "release:minor": "npm version minor --tag-version-prefix=\"\"",
+    "release:major": "npm version major --tag-version-prefix=\"\""
+  },
+  "keywords": [
+    "obsidian",
+    "rss",
+    "miniflux"
+  ],
+  "author": "shendongchun",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.17.10",
+    "esbuild": "^0.28.0",
+    "obsidian": "^1.8.3",
+    "typescript": "^5.6.3"
+  }
+}
