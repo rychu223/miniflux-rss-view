@@ -191,6 +191,13 @@ class MinifluxApiClient {
     });
   }
 
+  async setEntryStarred(id: number, starred: boolean): Promise<void> {
+    await this.requestNoContent({
+      url: this.url(`/entries/${id}/bookmark`),
+      method: starred ? "PUT" : "DELETE",
+    });
+  }
+
   private async requestJson<T>(options: RequestUrlParam): Promise<T> {
     const response = await this.requestRaw(options);
     const body = response.text.trim();
@@ -392,6 +399,7 @@ class MinifluxRssView extends ItemView {
       };
 
       const actions = header.createDiv({ cls: "miniflux-card-actions" });
+      this.createStarButton(actions, entry);
       this.createActionButton(actions, "external-link", "Open article", () => {
         void this.openEntry(entry);
       });
@@ -447,6 +455,46 @@ class MinifluxRssView extends ItemView {
       const message = getErrorMessage(error);
       this.setStatus(message, true);
       new Notice(message);
+    }
+  }
+
+  private createStarButton(parent: HTMLElement, entry: MinifluxEntry): void {
+    const starred = entry.starred === true;
+    const label = starred ? "Unstar article" : "Star article";
+    const button = parent.createEl("button", {
+      cls: "miniflux-icon-button miniflux-star-button",
+      attr: {
+        type: "button",
+        "aria-label": label,
+        title: label,
+      },
+    });
+    button.setText(starred ? "★" : "☆");
+    button.toggleClass("is-starred", starred);
+    button.onclick = () => {
+      void this.toggleStar(entry);
+    };
+  }
+
+  private async toggleStar(entry: MinifluxEntry): Promise<void> {
+    const target = !entry.starred;
+
+    try {
+      await this.plugin.api.setEntryStarred(entry.id, target);
+      entry.starred = target;
+
+      if (this.filter === "starred" && !target) {
+        const index = this.entries.indexOf(entry);
+        if (index !== -1) {
+          this.entries.splice(index, 1);
+          this.total = Math.max(0, this.total - 1);
+        }
+      }
+
+      this.renderCards();
+      this.setStatus(this.statusMessage());
+    } catch (error) {
+      new Notice(getErrorMessage(error));
     }
   }
 
